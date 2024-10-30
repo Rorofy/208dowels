@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+
+import sys
+from math import *
+
+DIST_TABLE = [  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0.00, 0.02, 0.06, 0.15, 0.27, 0.45, 0.71, 1.07, 1.64, 2.71, 3.84, 5.41, 6.63],
+                [0.02, 0.21, 0.45, 0.71, 1.02, 1.39, 1.83, 2.41, 3.22, 4.61, 5.99, 7.82, 9.21],
+                [0.11, 0.58, 1.01, 1.42, 1.87, 2.37, 2.95, 3.66, 4.64, 6.25, 7.81, 9.84, 11.35],
+                [0.30, 1.06, 1.65, 2.19, 2.75, 3.36, 4.04, 4.88, 5.99, 7.78, 9.49, 11.67, 13.28],
+                [0.55, 1.61, 2.34, 3.00, 3.66, 4.35, 5.13, 6.06, 7.29, 9.24, 11.07, 13.33, 15.01],
+                [0.70, 2.20, 3.07, 3.83, 4.57, 5.35, 6.21, 7.23, 8.56, 10.64, 12.59, 15.03, 16.81],
+                [1.24, 2.83, 3.82, 4.67, 5.49, 6.35, 7.28, 8.38, 9.80, 12.02, 14.07, 16.62, 18.48],
+                [1.65, 3.49, 4.59, 5.53, 6.42, 7.34, 8.35, 9.52, 11.03, 13.36, 15.51, 18.17, 20.09],
+                [2.09, 4.17, 5.38, 6.39, 7.36, 8.34, 9.41, 10.66, 12.24, 14.68, 16.92, 19.63, 21.67],
+                [2.56, 4.87, 6.18, 7.27, 8.30, 9.34, 10.47, 11.78, 13.44, 15.99, 18.31, 21.16, 23.21]]
+
+offset_l = 0;
+offset_r = 0
+
+def get_args():
+    tab = []
+    sum = 0
+    if (len(sys.argv) != 10):
+        print("Wrong number of arguments")
+        sys.exit(84)
+    try:
+        for i in range(1, 10):
+            tab.append(int(sys.argv[i]))
+        for i in tab:
+            sum += i
+            if (i < 0):
+                print("Inputs must be positive")
+                sys.exit(84)
+        if sum != 100:
+            print("Sum of inputs must be 100")
+            sys.exit(84)
+    except:
+        sys.exit(84)
+    return tab
+
+
+def binomial_coef(n, k):
+    return factorial(n) / (factorial(k) * factorial(n - k))
+
+
+def binomial(n, k, p):
+    return binomial_coef(n, k) * pow(p, k) * pow(1 - p, n - k)
+
+def compute_proba(args):
+    return sum([counter * value for counter, value in enumerate(args)]) / 10000
+
+def compute_tx(period):
+    tab = [100 * binomial(100, i, period) for i in range(8)]
+    tab.append(100 - sum(tab))
+    return tab
+
+def sort_args(args):
+    global offset_l, offset_r
+    while args[0] < 10:
+        args[0] = args[0] + args[1]
+        args.remove(args[1])
+        offset_l += 1
+    args.reverse()
+    while args[0] < 10:
+        args[0] = args[0] + args[1]
+        args.remove(args[1])
+        offset_r += 1
+    args.reverse()
+    return args
+
+def compute_fit(freedom, square):
+    if DIST_TABLE[freedom][0] > square:
+        fit = "P > 99%"
+        return fit
+    else:
+        for value in range(len(DIST_TABLE)):
+            if DIST_TABLE[freedom][value] > square:
+                if value == 0:
+                    fit = "99% > P > 90%"
+                elif value > 0 and value <= 9:
+                    fit = str(90 - value * 10) + "% < P < " + str(90 - (value - 1) * 10) + "%"
+                else:
+                    if value == 10:
+                        fit = "5% < P < 2%"
+                    elif value == 11:
+                        fit = "2% < P < 1%"
+                return fit
+        fit = "P < 1%"
+        return fit
+
+def printValue(sorted_args, proba, res, square, freedom, fit):
+    global offset_l, offset_r
+    print(" x  | 0", end='')
+    print("-%d" % offset_l if offset_l > 0 else "", end='')
+    for i in range(offset_l + 1, len(sys.argv) - 1 - offset_r):
+        print("\t| %d" % i, end='')
+    print("+\t| Total\n Ox | ", end='')
+    print("\t| ".join("%d" % i for i in sorted_args) + "\t| 100")
+    print(" Tx | ", end='')
+    print("\t| ".join("%.1f" % i for i in res) + "\t| 100")
+    print("Distribution:\t\tB(100, %.4f)" % proba)
+    print("Chi-squared:\t\t%.3f" % square)
+    print("Degrees of freedom:\t%d" % freedom)
+    print("Fit validity:\t\t%s" % fit)
+
+def main():
+    global offset_l, offset_r
+    args = get_args()
+    proba = compute_proba(args)
+    sorted_args = sort_args(args)
+    tx = compute_tx(proba)
+    res = []
+    res.append(sum(tx[:offset_l + 1]))
+    res += (i for i in tx[offset_l + 1:])
+    save = res[len(res) - 1 - offset_r:]
+    res = res[:len(res) - 1 - offset_r]
+    res.append(sum(i for i in tx[(len(tx) - 1 - offset_r):]))
+    freedom = len(res) - 2
+    square = sum(pow(sorted_args[i] - res[i], 2) / res[i] for i in range(len(res)))
+    fit = compute_fit(freedom, square)
+    printValue(sorted_args, proba, res, square, freedom, fit)
+    
+main()
